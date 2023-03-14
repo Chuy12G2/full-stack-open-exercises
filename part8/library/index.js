@@ -112,6 +112,10 @@ type Mutation {
     published: Int
     genres: [String!]
   ): Book
+  editAuthor(
+    name: String!
+    born: Int!
+  ): Author
 }
 `
 
@@ -151,7 +155,15 @@ const resolvers = {
       const book = {...args, id: uuidv4()}
       books = books.concat(book)
       return book
+    },
+    editAuthor: (root, args) => {
+      const author = authors.filter(a => a.name === args.name)
+      console.log(author)
+      const updatedAuthor = { name: author[0].name, id: author[0].id, born: args.born }
+      console.log(updatedAuthor)
+      return updatedAuthor
     }
+    
   }
 }
  
