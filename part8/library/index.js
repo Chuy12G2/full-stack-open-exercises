@@ -168,6 +168,7 @@ const resolvers = {
       console.log(author)
       const updatedAuthor = { name: author[0].name, id: author[0].id, born: args.born }
       console.log(updatedAuthor)
+      authors = authors.map(a => a.name === updatedAuthor.name ? updatedAuthor : a)
       return updatedAuthor
     }
     
