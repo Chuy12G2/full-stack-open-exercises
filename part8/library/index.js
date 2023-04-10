@@ -154,6 +154,13 @@ const resolvers = {
     addBook: (root, args) => {
       const book = {...args, id: uuidv4()}
       books = books.concat(book)
+      console.log(book);
+      const authorExist = authors.find(a => args.author === a.name)
+      console.log(authorExist);
+      if (authorExist === undefined) {
+        const newAuthor = {name: book.author, born: null, id: uuidv4()}
+        authors = authors.concat(newAuthor)
+      }
       return book
     },
     editAuthor: (root, args) => {
