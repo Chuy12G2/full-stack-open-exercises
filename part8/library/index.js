@@ -1,6 +1,24 @@
 const { ApolloServer } = require('@apollo/server')
 const { startStandaloneServer } = require('@apollo/server/standalone')
 const { v4: uuidv4 } = require('uuid')
+const mongoose = require('mongoose')
+
+mongoose.set('strictQuery', false)
+
+const Book = require('./models/book')
+const Author = require('./models/author')
+
+const MONGODB_URI = "mongodb+srv://chuygs12:LqHj35Dz5QX4pzri@cluster0.mbqdmof.mongodb.net/?retryWrites=true&w=majority"
+
+console.log('connecting to...' , MONGODB_URI)
+
+mongoose.connect(MONGODB_URI)
+  .then(() => {
+    console.log('connected to MongoDB')
+  })
+  .catch((error) => {
+    console.log('error connection to MongoDb:', error.message)
+  })
 
 let authors = [
   {
@@ -93,7 +111,7 @@ type Author {
 type Book {
   title: String!
   published: Int!
-  author: String!
+  author: Author!
   id: ID!
   genres: [String!]
 }
@@ -107,10 +125,10 @@ type Query {
 
 type Mutation {
   addBook(
-    title: String
-    author: String
-    published: Int
-    genres: [String!]
+    title: String!
+    author: String!
+    published: Int!
+    genres: [String!]!
   ): Book
   editAuthor(
     name: String!
@@ -121,54 +139,56 @@ type Mutation {
 
 const resolvers = {
   Query: {
-    bookCount: () => books.length,
-    authorCount: () => authors.length,
-    allBooks: (root, args) => {
-      if(!args.name && !args.genre){
+    bookCount: async () => Book.collection.countDocuments(), 
+    authorCount: async () => Author.collection.countDocuments(), 
+    allBooks: async (root,args) => {
+      if (args.author && args.genres) {
+        const author = await Author.findOne({name: args.author})
+        const books = await Book.find({
+          $and: [{
+            author:{$in:author.id},
+            genres:{$in: args.genres}
+            }]
+          }).populate('author')
         return books
-      }else if(args.name && args.genre){
-        return books.filter(b => (b.author === args.name) && (b.genres.includes(args.genre)))
-      } else if(args.name){
-        return books.filter(b => b.author === args.name)
-      } else if(args.genre){
-        return books.filter(b => b.genres.includes(args.genre))
+      } 
+      else if (args.genres) {
+        const books = await Book.find({genres:{$in: args.genres}}).populate('author');
+        return books
+      } 
+      else if (args.author) {
+        const author = await Author.findOne({name: args.author});
+        const books = await Book.find({author:{$in: author.id}}).populate('author');
+        return books;
+      } 
+      else {
+        return await Book.find({}).populate('author');
       }
-    },
-    allAuthors: (root, args) => authors
+  },
+    allAuthors: async () => Author.find({})
   },
 
   Author: {
-    bookCount: (root) => {
-      let authorBooks = 0
-      books.forEach(element => {
-        if(root.name === element.author){
-          authorBooks += 1
-        }
-      }
-      )
-      return authorBooks
-    } 
+    bookCount: async (root) => Book.find({author: root.id}).countDocuments()
   },
 
   Mutation: {
-    addBook: (root, args) => {
-      const book = {...args, id: uuidv4()}
-      books = books.concat(book)
-      console.log(book);
-      const authorExist = authors.find(a => args.author === a.name)
-      console.log(authorExist);
-      if (authorExist === undefined) {
-        const newAuthor = {name: book.author, born: null, id: uuidv4()}
-        authors = authors.concat(newAuthor)
+    addBook: async (root, args) => {
+      let author = await Author.findOne({name: args.author})
+      if(!author){
+        author = new Author({name: args.author})
+        await author.save();
       }
+      const book = new Book({...args,author: author.id})
+      await book.save()
       return book
     },
-    editAuthor: (root, args) => {
-      const author = authors.filter(a => a.name === args.name)
-      console.log(author)
-      const updatedAuthor = { name: author[0].name, id: author[0].id, born: args.born }
-      console.log(updatedAuthor)
-      authors = authors.map(a => a.name === updatedAuthor.name ? updatedAuthor : a)
+    editAuthor: async (root, args) => {
+      const objAuthor = await Author.findOne({name:args.name})
+      if (!objAuthor){
+        return null
+      } 
+      const updatedAuthor = await Author.findByIdAndUpdate({_id:objAuthor._id},{born: args.setBornTo},{new:true})
       return updatedAuthor
     }
     
@@ -186,3 +206,4 @@ startStandaloneServer(server, {
 }).then(({ url }) => {
   console.log(`Server ready at ${url}`)
 })
+
